@@ -2,11 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using Microsoft.Office.Interop.Excel;
-using Microsoft.Office.Tools.Ribbon;
 namespace ExcelAddIn1
 {
     /// <summary>

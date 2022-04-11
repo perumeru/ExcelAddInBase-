@@ -1,17 +1,10 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 using System.Data.OleDb;
-using System.Text;
-using System.Windows.Forms;
 
 namespace ExcelAddIn1
 {
     internal class AccessCon : WorkbookOperator
     {
-        public AccessCon()
-        {
-            
-        }
         public async void frmAccessCon_Load(string path, bool mdb)
         {
             //SQL作成

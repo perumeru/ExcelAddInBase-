@@ -7,7 +7,7 @@ using System.Windows.Forms;
 namespace ExcelAddIn1
 {
     /// <summary>
-    /// 
+    /// セル操作時用非同期クラス
     /// </summary>
     public static class TaskCall
     {
