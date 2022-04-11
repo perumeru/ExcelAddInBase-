@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Windows.Forms;
+using System.Windows.Threading;
 
 namespace ExcelAddIn1
 {
-    public class MyTask
+    public class ETask
     {
-        //条件を待つ
+        /// <summary>
+        /// 非同期で条件が満たされるのを待つ
+        /// </summary>
         public static WaitUntilAsync WaitUntil(in Func<bool> predicate)
         {
             return new WaitUntilAsync(predicate);
@@ -17,25 +19,37 @@ namespace ExcelAddIn1
     /// </summary>
     public struct WaitUntilAsync : INotifyCompletion
     {
-        Func<bool> _predicate;
+        readonly Func<bool> _predicate;
         //引数: 条件
         public WaitUntilAsync(Func<bool> predicate) { _predicate = predicate; }
         public WaitUntilAsync GetAwaiter() { return this; }
         //falseにしないとすぐにGetResult→終了する。OnCompletedが呼ばれない。
         public bool IsCompleted => false;
-        //continuationを呼ぶと非同期が終了する。
+        //continuationを呼ぶとawaitを抜ける
         public void OnCompleted(System.Action continuation) => AsyncSupport.Add(new FuncCore(continuation, _predicate)); 
         //最後に呼ばれる。
         public void GetResult() { }
     }
+    
     /// <summary>
     /// Asyncのカスタム用
     /// </summary>
-    public readonly struct AsyncSupport
+    readonly struct AsyncSupport
     {
-        static FuncCore[] Core = new FuncCore[4];
-        static uint Count = default(uint);
-        static object lockg = new object();
+        static FuncCore[] Core;
+        static int Count;
+        static object lockg;
+        static MyTimer timer;
+        static AsyncSupport()
+        {
+            Core = new FuncCore[4];
+            Count = default(int);
+            lockg = new object();
+            timer = new MyTimer(16);
+        }
+        /// <summary>
+        /// OnCompleted関数専用
+        /// </summary>
         public static void Add(in FuncCore core)
         {
             lock (lockg)
@@ -48,52 +62,60 @@ namespace ExcelAddIn1
                 }
                 Core[Count] = core;
                 Count++;
+                timer.Automatic();
             }
         }
+        /// <summary>
+        /// Countが0以外の場合は常に呼ばれる
+        /// </summary>
         static void RunCore(object sender, EventArgs e)
         {
-            if (Count == 0) return;
             lock (lockg)
             {
                 for (int i = 0; i < Count; i++)
                 {
                     FuncCore core = Core[i];
                     if (core.Equals(null)) continue;
+                    //判定
                     if (core.predicate == null || core.predicate())
                     {
-                        //MyTask非同期が終了する。
-                        core.core();
                         Count--;
                         Core[i] = Core[Count];
                         Core[Count] = default(FuncCore);
+                        timer.Automatic();
+                        //待機終了
+                        core.core();
                     }
                 }
             }
         }
-        //タイマー
         class MyTimer
         {
-            const int Interval = 20;
-            Timer timer = new Timer();
-            public MyTimer()
+            DispatcherTimer timer;
+            public MyTimer(int Interval)
             {
+                timer = new DispatcherTimer();
                 timer.Tick += new EventHandler(RunCore);
-                timer.Interval = Interval;
-                timer.Enabled = true;
+                timer.Interval = new TimeSpan(0, 0, 0, 0, Interval);
+                timer.IsEnabled = false;
             }
-            ~MyTimer()
+            /// <summary>
+            /// タイマーの起動、停止を自動で行う。
+            /// </summary>
+            public void Automatic()
             {
-                timer.Dispose();
+                if (Count == 0) timer.Stop();
+                if (Count == 1) timer.Start();
+                System.Threading.Thread.Yield();
             }
         }
-        static AsyncSupport() => new MyTimer();
     }
-
     //定義
-    public readonly struct FuncCore
+    readonly struct FuncCore
     {
         public readonly System.Action core;
         public readonly Func<bool> predicate;
-        public FuncCore(in System.Action core, in Func<bool> predicate) { this.core = core; this.predicate = predicate; }
+        public FuncCore(in System.Action core, in Func<bool> predicate) 
+        { this.core = core; this.predicate = predicate; }
     }
 }
